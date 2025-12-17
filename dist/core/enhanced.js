@@ -39,8 +39,6 @@ function buildEnhancedTree(list, options = {}, formatCallback) {
     }
     // 节点映射表
     const nodeMap = new Map();
-    // 根节点列表
-    const roots = [];
     // 第一步：收集所有节点
     for (const item of list) {
         const id = item[idKey];
@@ -58,31 +56,10 @@ function buildEnhancedTree(list, options = {}, formatCallback) {
             }
             continue;
         }
-        // 创建格式化节点（如果需要）
-        const initialContext = {
-            level: 0,
-            path: [id],
-            isLeaf: true,
-            childCount: 0
-        };
-        let formattedNode;
-        if (formatCallback) {
-            formattedNode = formatCallback(item, initialContext);
-            formattedNode[childrenKey] = [];
-        }
-        else if (formatNode) {
-            formattedNode = formatNode(item, initialContext);
-            formattedNode[childrenKey] = [];
-        }
-        else {
-            formattedNode = {
-                ...item,
-                [childrenKey]: []
-            };
-        }
+        // 存储原始节点信息
         nodeMap.set(id, {
             original: item,
-            formatted: formattedNode,
+            formatted: null,
             parentId,
             children: [],
             depth: 0
@@ -91,131 +68,134 @@ function buildEnhancedTree(list, options = {}, formatCallback) {
     stats.totalNodes = nodeMap.size;
     // 第二步：检测循环引用（如果需要）
     if (detectCycles && nodeMap.size > 0) {
-        // 只处理自引用节点（parentId === id），其他情况交给后续处理
-        const nodesToDelete = new Set();
-        for (const [id, nodeInfo] of nodeMap) {
-            if (nodeInfo.parentId === id) {
-                stats.cyclesDetected++;
-                onCycleDetected(nodeInfo.original, [id]);
-                nodesToDelete.add(id); // 标记自引用节点待删除
+        // 使用深度优先搜索检测循环引用
+        const visited = new Set();
+        const recursionStack = new Set();
+        const path = [];
+        // 深度优先搜索函数
+        function dfs(id) {
+            // 如果节点正在递归栈中，说明找到了循环
+            if (recursionStack.has(id)) {
+                const cycleStartIndex = path.indexOf(id);
+                if (cycleStartIndex !== -1) {
+                    const cyclePath = path.slice(cycleStartIndex);
+                    onCycleDetected(nodeMap.get(id).original, cyclePath);
+                    stats.cyclesDetected++;
+                }
+                return;
             }
+            // 如果节点已经访问过，跳过
+            if (visited.has(id)) {
+                return;
+            }
+            // 标记节点为已访问和在递归栈中
+            visited.add(id);
+            recursionStack.add(id);
+            path.push(id);
+            // 获取节点的父节点
+            const nodeInfo = nodeMap.get(id);
+            if (nodeInfo && nodeInfo.parentId !== null) {
+                const parentId = nodeInfo.parentId;
+                if (nodeMap.has(parentId) && id !== parentId) {
+                    dfs(parentId);
+                }
+            }
+            // 从递归栈和路径中移除节点
+            recursionStack.delete(id);
+            path.pop();
         }
-        // 执行删除操作
-        nodesToDelete.forEach(id => {
-            nodeMap.delete(id);
+        // 遍历所有节点
+        nodeMap.forEach((nodeInfo, id) => {
+            if (!visited.has(id)) {
+                dfs(id);
+            }
         });
     }
-    // 第三步：建立父子关系
+    // 第三步：建立父子关系映射
+    const childrenMap = new Map();
     for (const [id, nodeInfo] of nodeMap) {
-        // 跳过幽灵节点，因为它们已经作为根节点添加了
-        if (nodeInfo.isGhost) {
+        const { parentId } = nodeInfo;
+        // 跳过自引用节点
+        if (id === parentId) {
             continue;
         }
-        const { parentId } = nodeInfo;
-        // 判断是否为根节点
-        const isRoot = isRootNode ?
-            isRootNode(nodeInfo.original) :
-            (parentId === null ||
-                parentId === undefined ||
-                parentId === rootParentId);
-        if (isRoot) {
-            roots.push(nodeInfo.formatted);
-            nodeInfo.depth = 1;
-            stats.rootNodes++;
-        }
-        else {
+        // 非根节点，寻找父节点
+        if (parentId !== null && parentId !== undefined) {
             const parentInfo = nodeMap.get(parentId);
             if (parentInfo) {
-                // 父节点存在，正常挂载
-                parentInfo.children.push(nodeInfo);
-                nodeInfo.formatted.__parentId = parentId;
+                // 父节点存在，建立关系映射
+                if (!childrenMap.has(parentId)) {
+                    childrenMap.set(parentId, []);
+                }
+                childrenMap.get(parentId).push(nodeInfo);
             }
-            else {
-                // 父节点不存在
-                if (enableGhostNodes) {
-                    // 检查是否已经存在这个幽灵节点（在 nodeMap 或 roots 中）
-                    const existingGhostNode = nodeMap.get(parentId);
-                    if (existingGhostNode) {
-                        // 幽灵节点已存在，直接将当前节点添加到其子节点
-                        existingGhostNode.children.push(nodeInfo);
-                        nodeInfo.formatted.__parentId = parentId;
-                        nodeInfo.depth = existingGhostNode.depth + 1;
-                    }
-                    else {
-                        // 创建新的幽灵节点
-                        const ghostNode = {
-                            [idKey]: parentId,
-                            [childrenKey]: [nodeInfo.formatted],
-                            __isGhost: true,
-                            __parentId: null
-                        };
-                        const ghostInfo = {
-                            original: { [idKey]: parentId },
-                            formatted: ghostNode,
-                            parentId: null,
-                            children: [nodeInfo],
-                            depth: 1,
-                            isGhost: true
-                        };
-                        nodeMap.set(parentId, ghostInfo);
-                        roots.push(ghostNode);
-                        nodeInfo.formatted.__parentId = parentId;
-                        nodeInfo.depth = 2;
-                        stats.ghostNodesCreated++;
-                        stats.rootNodes++;
-                    }
-                    /* // 创建幽灵节点
-                    const ghostNode = {
-                      [idKey]: parentId,
-                      [childrenKey]: [nodeInfo.formatted],
-                      __isGhost: true,
-                      __parentId: null
-                    };
-                    
-                    const ghostInfo = {
-                      original: { [idKey]: parentId } as T,
-                      formatted: ghostNode,
-                      parentId: null,
-                      children: [nodeInfo],
-                      depth: 1
-                    };
-                    
-                    nodeMap.set(parentId!, ghostInfo);
-                    roots.push(ghostNode); // 幽灵节点作为根节点
-                    nodeInfo.formatted.__parentId = parentId;
-                    nodeInfo.depth = 2;
-                    stats.ghostNodesCreated++;
-                    stats.rootNodes++; */
+            else if (enableGhostNodes) {
+                // 父节点不存在，创建幽灵节点
+                const ghostId = parentId;
+                const ghostInfo = {
+                    original: { [idKey]: ghostId },
+                    formatted: null,
+                    parentId: null,
+                    children: [],
+                    depth: 0,
+                    isGhost: true
+                };
+                nodeMap.set(ghostId, ghostInfo);
+                // 建立幽灵节点与子节点的关系映射
+                if (!childrenMap.has(ghostId)) {
+                    childrenMap.set(ghostId, []);
                 }
-                else {
-                    // 不启用幽灵节点，将当前节点作为根节点
-                    roots.push(nodeInfo.formatted);
-                    nodeInfo.depth = 1;
-                    stats.rootNodes++;
-                }
+                childrenMap.get(ghostId).push(nodeInfo);
+                stats.ghostNodesCreated++;
             }
         }
     }
-    // 第四步：深度优先计算层级和路径
+    // 第四步：深度优先遍历构建树结构并格式化节点
+    const roots = [];
     const stack = [];
-    // 初始化栈
-    roots.forEach(rootNode => {
-        // 从nodeInfo中获取根节点ID，而不是从formattedNode中
-        // 遍历nodeMap，找到对应的nodeInfo
-        for (const [id, nodeInfo] of nodeMap) {
-            if (nodeInfo.formatted === rootNode) {
-                stack.push({
-                    nodeInfo,
-                    formattedNode: rootNode,
-                    depth: 1,
-                    path: [id]
-                });
-                break;
-            }
+    // 收集所有根节点 - 确保每个节点只被处理一次
+    const processedNodeIds = new Set();
+    // 识别真正的根节点
+    const rootNodes = [];
+    // 只将真正的根节点添加到栈中
+    // 根节点的定义：
+    // 1. 使用自定义根节点判断函数返回true的节点
+    // 2. 父节点为rootParentId的节点
+    // 3. 没有父节点的节点
+    nodeMap.forEach((nodeInfo, id) => {
+        const { parentId, isGhost } = nodeInfo;
+        let isRoot = false;
+        if (isRootNode) {
+            // 使用自定义根节点判断函数
+            isRoot = isRootNode(nodeInfo.original);
+        }
+        else {
+            // 只有当节点的父节点为rootParentId或不存在时，才是根节点
+            isRoot = (parentId === null || parentId === undefined || parentId === rootParentId);
+        }
+        if (isRoot) {
+            rootNodes.push({ nodeInfo, id });
+            stats.rootNodes++;
         }
     });
+    // 按照 ID 排序根节点
+    rootNodes.sort((a, b) => {
+        return a.id - b.id;
+    });
+    // 初始化栈，处理所有根节点
+    // 反转根节点顺序，确保弹出顺序正确
+    for (let i = rootNodes.length - 1; i >= 0; i--) {
+        const { nodeInfo, id } = rootNodes[i];
+        stack.push({
+            nodeInfo,
+            parentFormatted: null,
+            depth: 1,
+            path: [id]
+        });
+    }
+    // 深度优先遍历
     while (stack.length > 0) {
-        const { nodeInfo, formattedNode, depth, path } = stack.pop();
+        const { nodeInfo, parentFormatted, depth, path } = stack.pop();
         // 更新最大深度
         stats.maxDepth = Math.max(stats.maxDepth, depth);
         // 检查深度限制
@@ -223,150 +203,119 @@ function buildEnhancedTree(list, options = {}, formatCallback) {
             console.warn(`节点 "${path.join(' -> ')}" 深度超过限制: ${depth}`);
             continue;
         }
-        // 处理子节点
-        const childrenInfos = nodeInfo.children;
+        // 获取节点ID
+        const nodeId = nodeInfo.original[idKey];
+        // 如果节点已经处理过，跳过
+        if (processedNodeIds.has(nodeId)) {
+            continue;
+        }
+        // 标记节点为已处理
+        processedNodeIds.add(nodeId);
+        // 计算节点上下文 - 确保父节点不包含子节点，避免循环引用
+        let safeParent = null;
+        if (parentFormatted) {
+            // 创建父节点的安全副本，移除子节点引用，避免循环引用
+            safeParent = { ...parentFormatted };
+            // 移除子节点引用，避免循环引用
+            if (safeParent[childrenKey]) {
+                delete safeParent[childrenKey];
+            }
+        }
+        // 使用childrenMap获取子节点列表
+        const children = childrenMap.get(nodeId) || [];
+        const context = {
+            level: depth,
+            path: path,
+            isLeaf: children.length === 0,
+            parent: safeParent,
+            childCount: children.length
+        };
+        // 格式化节点 - 只格式化一次
+        let formattedNode;
+        if (formatCallback) {
+            formattedNode = formatCallback(nodeInfo.original, context);
+        }
+        else if (formatNode) {
+            formattedNode = formatNode(nodeInfo.original, context);
+        }
+        else {
+            formattedNode = { ...nodeInfo.original };
+        }
+        // 设置幽灵节点标记
+        if (nodeInfo.isGhost) {
+            formattedNode.__isGhost = true;
+        }
+        // 设置父ID引用
+        if (nodeInfo.parentId) {
+            formattedNode.__parentId = nodeInfo.parentId;
+        }
+        else {
+            formattedNode.__parentId = null;
+        }
+        // 初始化子节点数组
+        formattedNode[childrenKey] = [];
+        // 更新nodeMap中的格式化节点
+        nodeInfo.formatted = formattedNode;
+        // 如果是根节点，添加到结果列表
+        if (!parentFormatted) {
+            roots.push(formattedNode);
+        }
         // 子节点排序
-        if (sortChildren && childrenInfos.length > 0) {
+        if (sortChildren && children.length > 0) {
             try {
-                childrenInfos.sort((a, b) => sortChildren(a.original, b.original));
+                children.sort((a, b) => sortChildren(a.original, b.original));
             }
             catch (error) {
                 console.warn('子节点排序失败:', error);
             }
         }
-        // 构建子节点
-        const children = [];
-        for (const childInfo of childrenInfos) {
+        // 处理子节点 - 逆序压入栈，保证顺序正确
+        for (let i = children.length - 1; i >= 0; i--) {
+            const childInfo = children[i];
             const childId = childInfo.original[idKey];
             const childPath = [...path, childId];
             const childDepth = depth + 1;
-            // 更新子节点深度
-            childInfo.depth = childDepth;
-            // 创建或获取格式化节点
-            let childFormatted = childInfo.formatted;
-            // 计算子节点上下文
-            const childContext = {
-                level: childDepth,
-                path: childPath,
-                isLeaf: childInfo.children.length === 0,
-                parent: formattedNode,
-                childCount: childInfo.children.length
-            };
-            // 应用格式化回调
-            if (formatCallback) {
-                childFormatted = {
-                    ...formatCallback(childInfo.original, childContext),
-                    [childrenKey]: []
-                };
-            }
-            else if (formatNode) {
-                childFormatted = {
-                    ...formatNode(childInfo.original, childContext),
-                    [childrenKey]: []
-                };
-            }
-            // 设置父ID引用
-            childFormatted.__parentId = nodeInfo.original[idKey];
-            children.push(childFormatted);
-            childInfo.formatted = childFormatted;
-            // 继续处理子节点的子节点
             stack.push({
                 nodeInfo: childInfo,
-                formattedNode: childFormatted,
+                parentFormatted: formattedNode,
                 depth: childDepth,
                 path: childPath
             });
         }
+    }
+    // 第五步：二次遍历，构建完整的子节点关系
+    // 注意：这里不需要重新格式化节点，只需要构建子节点列表
+    // 创建一个映射，将formattedNode映射到原始ID，因为childrenMap使用原始ID作为键
+    const formattedNodeToOriginalIdMap = new Map();
+    nodeMap.forEach((nodeInfo, originalId) => {
+        if (nodeInfo.formatted) {
+            formattedNodeToOriginalIdMap.set(nodeInfo.formatted, originalId);
+        }
+    });
+    const stack2 = [...roots];
+    while (stack2.length > 0) {
+        const formattedNode = stack2.pop();
+        // 获取当前节点的原始ID
+        const originalId = formattedNodeToOriginalIdMap.get(formattedNode);
+        // 构建子节点列表，使用childrenMap获取子节点
+        const children = [];
+        const childInfos = childrenMap.get(originalId) || [];
+        for (const childInfo of childInfos) {
+            if (childInfo.formatted) {
+                children.push(childInfo.formatted);
+                stack2.push(childInfo.formatted);
+            }
+        }
         // 更新当前节点的子节点列表
         formattedNode[childrenKey] = children;
-        // 更新当前节点的上下文信息
-        const currentContext = {
-            level: depth,
-            path,
-            isLeaf: children.length === 0,
-            childCount: children.length
-        };
-        // 重新格式化当前节点（如果需要）
-        if (formatCallback) {
-            Object.assign(formattedNode, formatCallback(nodeInfo.original, currentContext));
-            formattedNode[childrenKey] = children; // 保持子节点引用
-        }
-        else if (formatNode) {
-            Object.assign(formattedNode, formatNode(nodeInfo.original, currentContext));
-            formattedNode[childrenKey] = children;
-        }
-    }
-    // 第五步：根节点排序
-    if (sortChildren && roots.length > 1) {
-        try {
-            roots.sort((a, b) => {
-                const aId = a[idKey];
-                const bId = b[idKey];
-                const aInfo = nodeMap.get(aId);
-                const bInfo = nodeMap.get(bId);
-                if (aInfo && bInfo) {
-                    return sortChildren(aInfo.original, bInfo.original);
-                }
-                return 0;
-            });
-        }
-        catch (error) {
-            console.warn('根节点排序失败:', error);
-        }
     }
     // 计算性能统计
     const endTime = performance.now();
     const endMemory = process.memoryUsage?.()?.heapUsed || 0;
     stats.buildTime = endTime - startTime;
     stats.memoryUsed = (endMemory - startMemory) / (1024 * 1024); // 转换为MB
-    // 返回结果，不包含内部统计信息
+    // 将统计信息添加到结果树中
+    roots.__stats = stats;
+    // 返回结果
     return roots;
-}
-/**
- * 循环引用检测函数
- * 使用深度优先搜索检测有向图中的环
- */
-function detectCyclesInMap(nodeMap, idKey) {
-    const cycles = [];
-    const visited = new Set();
-    const recursionStack = new Set();
-    const path = [];
-    // 深度优先搜索检测环
-    function dfs(id) {
-        // 如果节点正在递归栈中，说明找到了环
-        if (recursionStack.has(id)) {
-            const cycleStartIndex = path.indexOf(id);
-            if (cycleStartIndex !== -1) {
-                cycles.push(path.slice(cycleStartIndex));
-            }
-            return;
-        }
-        // 如果节点已经访问过，跳过
-        if (visited.has(id)) {
-            return;
-        }
-        // 标记节点为已访问和在递归栈中
-        visited.add(id);
-        recursionStack.add(id);
-        path.push(id);
-        // 获取节点的子节点
-        const nodeInfo = nodeMap.get(id);
-        if (nodeInfo) {
-            const parentId = nodeInfo.parentId;
-            // 遍历父节点（因为树结构中每个节点只有一个父节点）
-            if (parentId !== null && nodeMap.has(parentId) && id !== parentId) {
-                dfs(parentId);
-            }
-        }
-        // 从递归栈和路径中移除节点
-        recursionStack.delete(id);
-        path.pop();
-    }
-    // 遍历所有节点
-    nodeMap.forEach((nodeInfo, id) => {
-        if (!visited.has(id)) {
-            dfs(id);
-        }
-    });
-    return cycles;
 }
