@@ -22,7 +22,10 @@ export default [
     plugins: [
       typescript({
         tsconfig: './tsconfig.json',
-        declaration: false
+        declaration: false,
+        compilerOptions: {
+          module: 'esnext'
+        }
       }),
       terser({
         compress: {
@@ -53,7 +56,10 @@ export default [
     plugins: [
       typescript({
         tsconfig: './tsconfig.json',
-        declaration: false
+        declaration: false,
+        compilerOptions: {
+          module: 'esnext'
+        }
       }),
       terser()
     ]
@@ -78,7 +84,10 @@ export default [
     plugins: [
       typescript({
         tsconfig: './tsconfig.json',
-        declaration: false
+        declaration: false,
+        compilerOptions: {
+          module: 'esnext'
+        }
       }),
       terser()
     ]
