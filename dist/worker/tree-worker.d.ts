@@ -1,22 +1,12 @@
-interface WorkerMessage<T = any> {
+interface WorkerMessage {
     id: string;
-    type: 'build' | 'validate' | 'flatten' | 'find' | 'stats';
+    type: string;
     payload: {
-        data: T[];
+        data: any[];
         options?: any;
         config?: any;
     };
 }
-interface WorkerResponse<T = any> {
-    id: string;
-    type: string;
-    success: boolean;
-    result?: T;
-    error?: string;
-    stats?: {
-        processingTime: number;
-        memoryUsed: number;
-        dataSize: number;
-    };
-}
-export type { WorkerMessage, WorkerResponse };
+declare function buildSimpleTree(data: any[], options?: any): any[];
+declare function validateTreeStructure(tree: any[], config?: any): any;
+declare function flattenTree(tree: any[], config?: any): any[];

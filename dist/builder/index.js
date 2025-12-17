@@ -1,12 +1,2 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.StrategyFactory = exports.RecursiveStrategy = exports.EnhancedStrategy = exports.MinimalStrategy = exports.IncrementalTreeBuilder = exports.SmartTreeBuilder = void 0;
-var smart_1 = require("./smart");
-Object.defineProperty(exports, "SmartTreeBuilder", { enumerable: true, get: function () { return smart_1.SmartTreeBuilder; } });
-var incremental_1 = require("./incremental");
-Object.defineProperty(exports, "IncrementalTreeBuilder", { enumerable: true, get: function () { return incremental_1.IncrementalTreeBuilder; } });
-var strategies_1 = require("./strategies");
-Object.defineProperty(exports, "MinimalStrategy", { enumerable: true, get: function () { return strategies_1.MinimalStrategy; } });
-Object.defineProperty(exports, "EnhancedStrategy", { enumerable: true, get: function () { return strategies_1.EnhancedStrategy; } });
-Object.defineProperty(exports, "RecursiveStrategy", { enumerable: true, get: function () { return strategies_1.RecursiveStrategy; } });
-Object.defineProperty(exports, "StrategyFactory", { enumerable: true, get: function () { return strategies_1.StrategyFactory; } });
+"use strict";Object.defineProperty(exports,"__esModule",{value:!0}),exports.StrategyFactory=exports.RecursiveStrategy=exports.EnhancedStrategy=exports.MinimalStrategy=exports.IncrementalTreeBuilder=exports.SmartTreeBuilder=void 0;var e=require("./smart");Object.defineProperty(exports,"SmartTreeBuilder",{enumerable:!0,get:function(){return e.SmartTreeBuilder}});var r=require("./incremental");Object.defineProperty(exports,"IncrementalTreeBuilder",{enumerable:!0,get:function(){return r.IncrementalTreeBuilder}});var t=require("./strategies");Object.defineProperty(exports,"MinimalStrategy",{enumerable:!0,get:function(){return t.MinimalStrategy}}),Object.defineProperty(exports,"EnhancedStrategy",{enumerable:!0,get:function(){return t.EnhancedStrategy}}),Object.defineProperty(exports,"RecursiveStrategy",{enumerable:!0,get:function(){return t.RecursiveStrategy}}),Object.defineProperty(exports,"StrategyFactory",{enumerable:!0,get:function(){return t.StrategyFactory}});
+//# sourceMappingURL=index.js.map

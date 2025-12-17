@@ -28,9 +28,11 @@
     }
   },
   "scripts": {
+    "prepare": "npm run build:all",
     "build": "tsc",
+    "build:rollup": "rollup -c --bundleConfigAsCjs",
     "build:worker": "tsc -p tsconfig.worker.json",
-    "build:all": "tsc && npm run build:worker",
+    "build:all": "tsc && npm run build:worker && npm run build:rollup",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
@@ -51,12 +53,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/your-username/tree-formatter.git"
+    "url": "https://github.com/star1209/tree-formatter.git"
   },
   "bugs": {
-    "url": "https://github.com/your-username/tree-formatter/issues"
+    "url": "https://github.com/star1209/tree-formatter/issues"
   },
-  "homepage": "https://github.com/your-username/tree-formatter#readme",
+  "homepage": "https://github.com/star1209/tree-formatter#readme",
   "devDependencies": {
     "@rollup/plugin-typescript": "^11.0.0",
     "@types/jest": "^29.5.14",

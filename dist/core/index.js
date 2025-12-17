@@ -1,8 +1,2 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.buildEnhancedTree = exports.validateMinimalTree = exports.buildMinimalTree = void 0;
-var minimal_1 = require("./minimal");
-Object.defineProperty(exports, "buildMinimalTree", { enumerable: true, get: function () { return minimal_1.buildMinimalTree; } });
-Object.defineProperty(exports, "validateMinimalTree", { enumerable: true, get: function () { return minimal_1.validateMinimalTree; } });
-var enhanced_1 = require("./enhanced");
-Object.defineProperty(exports, "buildEnhancedTree", { enumerable: true, get: function () { return enhanced_1.buildEnhancedTree; } });
+"use strict";Object.defineProperty(exports,"__esModule",{value:!0}),exports.buildEnhancedTree=exports.validateMinimalTree=exports.buildMinimalTree=void 0;var e=require("./minimal");Object.defineProperty(exports,"buildMinimalTree",{enumerable:!0,get:function(){return e.buildMinimalTree}}),Object.defineProperty(exports,"validateMinimalTree",{enumerable:!0,get:function(){return e.validateMinimalTree}});var r=require("./enhanced");Object.defineProperty(exports,"buildEnhancedTree",{enumerable:!0,get:function(){return r.buildEnhancedTree}});
+//# sourceMappingURL=index.js.map
