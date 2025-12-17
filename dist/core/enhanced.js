@@ -319,10 +319,7 @@ function buildEnhancedTree(list, options = {}, formatCallback) {
     const endMemory = process.memoryUsage?.()?.heapUsed || 0;
     stats.buildTime = endTime - startTime;
     stats.memoryUsed = (endMemory - startMemory) / (1024 * 1024); // 转换为MB
-    // 添加统计信息到根节点
-    if (roots.length > 0) {
-        roots.__stats = stats;
-    }
+    // 返回结果，不包含内部统计信息
     return roots;
 }
 /**
