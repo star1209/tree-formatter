@@ -111,16 +111,21 @@ export function buildEnhancedTree<T = any, R = T>(
 
   // 第二步：检测循环引用（如果需要）
   if (detectCycles && nodeMap.size > 0) {
-    const cycles = detectCyclesInMap(nodeMap, idKey);
-    
     // 只处理自引用节点（parentId === id），其他情况交给后续处理
+    const nodesToDelete: Set<string | number> = new Set();
+    
     for (const [id, nodeInfo] of nodeMap) {
       if (nodeInfo.parentId === id) {
         stats.cyclesDetected++;
         onCycleDetected(nodeInfo.original, [id]);
-        nodeMap.delete(id); // 移除自引用节点
+        nodesToDelete.add(id); // 标记自引用节点待删除
       }
     }
+    
+    // 执行删除操作
+    nodesToDelete.forEach(id => {
+      nodeMap.delete(id);
+    });
   }
 
   // 第三步：建立父子关系
@@ -132,9 +137,11 @@ export function buildEnhancedTree<T = any, R = T>(
     const { parentId } = nodeInfo;
 
     // 判断是否为根节点
-    const isRoot = parentId === null || 
-              parentId === undefined || 
-              parentId === rootParentId;
+    const isRoot = isRootNode ? 
+      isRootNode(nodeInfo.original) : 
+      (parentId === null || 
+       parentId === undefined || 
+       parentId === rootParentId);
 
     if (isRoot) {
       roots.push(nodeInfo.formatted);
@@ -223,15 +230,18 @@ export function buildEnhancedTree<T = any, R = T>(
 
   // 初始化栈
   roots.forEach(rootNode => {
-    const rootId = rootNode[idKey];
-    const nodeInfo = nodeMap.get(rootId);
-    if (nodeInfo) {
-      stack.push({
-        nodeInfo,
-        formattedNode: rootNode,
-        depth: 1,
-        path: [rootId]
-      });
+    // 从nodeInfo中获取根节点ID，而不是从formattedNode中
+    // 遍历nodeMap，找到对应的nodeInfo
+    for (const [id, nodeInfo] of nodeMap) {
+      if (nodeInfo.formatted === rootNode) {
+        stack.push({
+          nodeInfo,
+          formattedNode: rootNode,
+          depth: 1,
+          path: [id]
+        });
+        break;
+      }
     }
   });
 
