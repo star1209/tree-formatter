@@ -113,14 +113,14 @@ export function buildEnhancedTree<T = any, R = T>(
   if (detectCycles && nodeMap.size > 0) {
     const cycles = detectCyclesInMap(nodeMap, idKey);
     
-    cycles.forEach((cycle: (string | number)[]) => {
-      stats.cyclesDetected++;
-      const cycleNode = nodeMap.get(cycle[0]);
-      if (cycleNode) {
-        onCycleDetected(cycleNode.original, cycle);
-        nodeMap.delete(cycle[0]); // 移除环中的节点
+    // 只处理自引用节点（parentId === id），其他情况交给后续处理
+    for (const [id, nodeInfo] of nodeMap) {
+      if (nodeInfo.parentId === id) {
+        stats.cyclesDetected++;
+        onCycleDetected(nodeInfo.original, [id]);
+        nodeMap.delete(id); // 移除自引用节点
       }
-    });
+    }
   }
 
   // 第三步：建立父子关系
@@ -368,82 +368,57 @@ export function buildEnhancedTree<T = any, R = T>(
 
 /**
  * 循环引用检测函数
+ * 使用深度优先搜索检测有向图中的环
  */
 function detectCyclesInMap(
   nodeMap: Map<string | number, any>,
   idKey: string
 ): (string | number)[][] {
-  const adjacency = new Map<string | number, Set<string | number>>();
-  const inDegree = new Map<string | number, number>();
-  
-  // 初始化图
-  nodeMap.forEach((nodeInfo, id) => {
-    adjacency.set(id, new Set());
-    inDegree.set(id, 0);
-  });
-  
-  // 构建边
-  nodeMap.forEach((nodeInfo, id) => {
-    const parentId = nodeInfo.parentId;
-    if (parentId !== null && nodeMap.has(parentId) && id !== parentId) {
-      adjacency.get(parentId)!.add(id);
-      inDegree.set(id, (inDegree.get(id) || 0) + 1);
-    }
-  });
-  
-  // Kahn算法检测环
-  const queue: (string | number)[] = [];
   const cycles: (string | number)[][] = [];
+  const visited = new Set<string | number>();
+  const recursionStack = new Set<string | number>();
+  const path: (string | number)[] = [];
   
-  // 入度为0的节点入队
-  inDegree.forEach((degree, id) => {
-    if (degree === 0) {
-      queue.push(id);
+  // 深度优先搜索检测环
+  function dfs(id: string | number) {
+    // 如果节点正在递归栈中，说明找到了环
+    if (recursionStack.has(id)) {
+      const cycleStartIndex = path.indexOf(id);
+      if (cycleStartIndex !== -1) {
+        cycles.push(path.slice(cycleStartIndex));
+      }
+      return;
     }
-  });
-  
-  // 处理队列
-  while (queue.length > 0) {
-    const current = queue.shift()!;
     
-    const neighbors = adjacency.get(current);
-    if (neighbors) {
-      neighbors.forEach(neighbor => {
-        const newDegree = (inDegree.get(neighbor) || 1) - 1;
-        inDegree.set(neighbor, newDegree);
-        
-        if (newDegree === 0) {
-          queue.push(neighbor);
-        }
-      });
+    // 如果节点已经访问过，跳过
+    if (visited.has(id)) {
+      return;
     }
+    
+    // 标记节点为已访问和在递归栈中
+    visited.add(id);
+    recursionStack.add(id);
+    path.push(id);
+    
+    // 获取节点的子节点
+    const nodeInfo = nodeMap.get(id);
+    if (nodeInfo) {
+      const parentId = nodeInfo.parentId;
+      // 遍历父节点（因为树结构中每个节点只有一个父节点）
+      if (parentId !== null && nodeMap.has(parentId) && id !== parentId) {
+        dfs(parentId);
+      }
+    }
+    
+    // 从递归栈和路径中移除节点
+    recursionStack.delete(id);
+    path.pop();
   }
   
-  // 找出环中的节点
-  const visited = new Set<string | number>();
-  
-  inDegree.forEach((degree, id) => {
-    if (degree > 0 && !visited.has(id)) {
-      const cycle: (string | number)[] = [];
-      let current = id;
-      
-      while (!visited.has(current)) {
-        visited.add(current);
-        cycle.push(current);
-        
-        // 找到下一个在环中的节点
-        const neighbors = Array.from(adjacency.get(current) || []);
-        for (const neighbor of neighbors) {
-          if (inDegree.get(neighbor)! > 0 && !visited.has(neighbor)) {
-            current = neighbor;
-            break;
-          }
-        }
-      }
-      
-      if (cycle.length > 0) {
-        cycles.push(cycle);
-      }
+  // 遍历所有节点
+  nodeMap.forEach((nodeInfo, id) => {
+    if (!visited.has(id)) {
+      dfs(id);
     }
   });
   
