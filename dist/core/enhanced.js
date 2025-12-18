@@ -316,6 +316,18 @@ function buildEnhancedTree(list, options = {}, formatCallback) {
     stats.memoryUsed = (endMemory - startMemory) / (1024 * 1024); // 转换为MB
     // 将统计信息添加到结果树中
     roots.__stats = stats;
+    // 删除空的 children 属性
+    function removeEmptyChildren(nodes) {
+        for (const node of nodes) {
+            if (Array.isArray(node[childrenKey]) && node[childrenKey].length === 0) {
+                delete node[childrenKey];
+            }
+            else {
+                removeEmptyChildren(node[childrenKey] || []);
+            }
+        }
+    }
+    removeEmptyChildren(roots);
     // 返回结果
     return roots;
 }

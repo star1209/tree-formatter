@@ -151,7 +151,8 @@ describe('buildEnhancedTree', () => {
     expect(tree[0].id).toBe(1);
     expect(tree[1].id).toBe(3);
     expect(tree[0].children).toHaveLength(1);
-    expect(tree[1].children).toHaveLength(0);
+    // 空的 children 属性应该被删除
+    expect(tree[1].children).toBeUndefined();
   });
 
   test('should include build statistics', () => {

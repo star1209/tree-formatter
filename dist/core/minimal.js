@@ -85,6 +85,18 @@ function buildMinimalTree(list, options = {}) {
             }
         }
     }
+    // 删除空的 children 属性
+    function removeEmptyChildren(nodes) {
+        for (const node of nodes) {
+            if (Array.isArray(node[config.childrenKey]) && node[config.childrenKey].length === 0) {
+                delete node[config.childrenKey];
+            }
+            else {
+                removeEmptyChildren(node[config.childrenKey]);
+            }
+        }
+    }
+    removeEmptyChildren(roots);
     return roots;
 }
 /**

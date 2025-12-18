@@ -384,6 +384,19 @@ export function buildEnhancedTree<T = any, R = T>(
   // 将统计信息添加到结果树中
   (roots as any).__stats = stats;
 
+  // 删除空的 children 属性
+  function removeEmptyChildren(nodes: any[]) {
+    for (const node of nodes) {
+      if (Array.isArray(node[childrenKey]) && node[childrenKey].length === 0) {
+        delete node[childrenKey];
+      } else {
+        removeEmptyChildren(node[childrenKey] || []);
+      }
+    }
+  }
+
+  removeEmptyChildren(roots);
+  
   // 返回结果
   return roots;
 }
